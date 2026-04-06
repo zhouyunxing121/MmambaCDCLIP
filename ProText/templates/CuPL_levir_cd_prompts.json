@@ -1,0 +1,22 @@
+{
+    "unchanged": [
+        "A unchanged region has no difference between two temporal satellite images.",
+        "A unchanged area shows consistent land cover without any variation.",
+        "The unchanged region remains the same in shape, texture and color over time.",
+        "Satellite imagery shows a unchanged area with no object changes.",
+        "An unchanged region has no new buildings, roads or vegetation changes.",
+        "The surface features in unchanged area are completely stable.",
+        "No temporal changes appear in this unchanged satellite region.",
+        "This area is unchanged with identical landscape in two time phases."
+    ],
+    "changed": [
+        "A changed region has obvious differences between two temporal satellite images.",
+        "A changed area shows obvious land cover variation and object changes.",
+        "The changed region has new buildings, construction or vegetation alterations.",
+        "Satellite imagery shows a changed area with significant temporal changes.",
+        "A changed region has different texture, color and object distribution.",
+        "This area is changed with obvious landscape modifications over time.",
+        "Buildings or ground objects have been added or removed in this changed region.",
+        "Significant temporal changes appear in this changed satellite region."
+    ]
+}
