@@ -1,0 +1,3 @@
+DATASET:
+  NAME: "change_detection"
+  NUM_SHOTS: 16  # 和ImageNet保持一致，纯文本训练不影响，仅为配置兼容

@@ -1,0 +1,27 @@
+DATALOADER:
+  TRAIN:
+    BATCH_SIZE: 128
+  TEST:
+    BATCH_SIZE: 128
+
+INPUT:
+  SIZE: [224, 224]
+  TRANSFORMS: ["random_resized_crop", "horizontal_flip", "normalize"]
+
+OPTIM:
+  NAME: adamw
+  LR: 0.002
+  MAX_EPOCH: 100
+  WEIGHT_DECAY: 0.01
+  LR_SCHEDULER: cosine
+
+TRAINER:
+  PROTEXT:
+    N_CTX_TEXT: 12
+    PROMPT_DEPTH_TEXT: 9
+    CTX_INIT: "a photo of a"
+    PREC: "fp16"
+    GPT_PATH: "templates/CuPL_levir_cd_prompts.json"
+    USE_TEMPLATES: False
+    L_TWO_NORM: True
+    L_TWO_WEIGHT: 1000.0

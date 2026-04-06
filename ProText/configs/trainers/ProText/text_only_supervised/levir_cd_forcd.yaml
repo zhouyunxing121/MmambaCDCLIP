@@ -1,0 +1,47 @@
+DATALOADER:
+  TRAIN_X:
+    BATCH_SIZE: 16  # 双图输入，减半防止OOM
+  TEST:
+    BATCH_SIZE: 16
+  NUM_WORKERS: 4
+
+INPUT:
+  SIZE: (224, 224)
+  INTERPOLATION: "bicubic"
+  PIXEL_MEAN: [0.48145466, 0.4578275, 0.40821073]
+  PIXEL_STD: [0.26862954, 0.26130258, 0.27577711]
+  TRANSFORMS: ["random_resized_crop", "random_flip", "normalize"]
+
+OPTIM:
+  NAME: "adamw"
+  LR: 0.0005  # 大幅降低，适配特征提取任务
+  MAX_EPOCH: 100
+  LR_SCHEDULER: "cosine"
+  WARMUP_EPOCH: 5
+  WARMUP_TYPE: "constant"
+  WARMUP_CONS_LR: 1e-5
+  WEIGHT_DECAY: 0.05
+  ADAM_BETA1: 0.9
+  ADAM_BETA2: 0.98
+
+TRAIN:
+  PRINT_FREQ: 10
+
+MODEL:
+  BACKBONE:
+    NAME: "ViT-B/16"
+
+TRAINER:
+  PROTEXT:
+    N_CTX_TEXT: 16
+    CTX_INIT: "a photo of a"
+    PREC: "fp32"
+    PROMPT_DEPTH_TEXT: 9
+    GPT_PATH: "templates/CuPL_levir_cd_prompts.json"
+    USE_TEMPLATES: True
+    USE_ATTRIBUTE_DATA: False
+    OUTPUT_FEAT: True  # 新增：输出特征，而非分类得分
+
+DATASET:
+  NUM_SHOTS: -1
+  SUBSAMPLE_CLASSES: "all"

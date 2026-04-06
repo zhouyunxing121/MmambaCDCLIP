@@ -1,0 +1,43 @@
+# ProText: Prompt Learning with Text Only Supervision for Change Detection
+DATALOADER:
+  TRAIN_X:
+    BATCH_SIZE: 256  # 和ImageNet一致
+  TEST:
+    BATCH_SIZE: 100  # 和ImageNet一致
+  NUM_WORKERS: 8     # 和ImageNet一致
+
+INPUT:
+  SIZE: (224, 224)   # 和ImageNet一致，CLIP ViT-B/16标准输入
+  INTERPOLATION: "bicubic"
+  PIXEL_MEAN: [0.48145466, 0.4578275, 0.40821073]  # CLIP官方均值
+  PIXEL_STD: [0.26862954, 0.26130258, 0.27577711]   # CLIP官方方差
+  TRANSFORMS: ["random_resized_crop", "random_flip", "normalize"]  # 和ImageNet一致
+
+OPTIM:
+  NAME: "adamw"      # 和ImageNet一致的优化器
+  LR: 0.0025         # 和ImageNet一致的学习率
+  MAX_EPOCH: 200     # 和ImageNet一致的训练轮数
+  LR_SCHEDULER: "cosine"  # 和ImageNet一致的余弦调度
+  WARMUP_EPOCH: 5    # 和ImageNet一致的热身轮数
+  WARMUP_TYPE: "constant"
+  WARMUP_CONS_LR: 1e-5
+  WEIGHT_DECAY: 0.1  # 和ImageNet一致的权重衰减
+  ADAM_BETA1: 0.9
+  ADAM_BETA2: 0.98
+
+TRAIN:
+  PRINT_FREQ: 20     # 和ImageNet一致的打印频率
+
+MODEL:
+  BACKBONE:
+    NAME: "ViT-B/16"  # 和ImageNet一致，使用CLIP ViT-B/16主干
+
+TRAINER:
+  PROTEXT:
+    N_CTX_TEXT: 16    # 和ImageNet一致，文本提示长度16
+    CTX_INIT: "a photo of a"  # 和ImageNet一致，提示初始化文本
+    PREC: "fp16"      # 和ImageNet一致，混合精度训练
+    PROMPT_DEPTH_TEXT: 9  # 和ImageNet一致，文本提示嵌入深度9
+    GPT_PATH: "templates/CuPL_change_detection_prompts.json"  # 专属变化检测的GPT描述文件
+    USE_TEMPLATES: False  # 和ImageNet一致
+    USE_ATTRIBUTE_DATA: False  # 和ImageNet一致

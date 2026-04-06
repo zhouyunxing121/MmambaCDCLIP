@@ -1,0 +1,334 @@
+Setting fixed seed: 1
+***************
+** Arguments **
+***************
+backbone: 
+config_file: configs/trainers/ProText/text_only_supervised/levir_cd.yaml
+dataset_config_file: configs/datasets/levir_cd.yaml
+eval_only: False
+head: 
+load_epoch: None
+model_dir: 
+no_train: False
+opts: []
+output_dir: output/levir_cd_protext
+resume: 
+root: /home/dc001/data/
+seed: 1
+source_domains: None
+target_domains: None
+trainer: ProText
+transforms: None
+************
+** Config **
+************
+DATALOADER:
+  K_TRANSFORMS: 1
+  NUM_WORKERS: 8
+  RETURN_IMG0: False
+  TEST:
+    BATCH_SIZE: 32
+    SAMPLER: SequentialSampler
+  TRAIN_U:
+    BATCH_SIZE: 32
+    N_DOMAIN: 0
+    N_INS: 16
+    SAME_AS_X: True
+    SAMPLER: RandomSampler
+  TRAIN_X:
+    BATCH_SIZE: 32
+    N_DOMAIN: 0
+    N_INS: 16
+    SAMPLER: RandomSampler
+DATASET:
+  ALL_AS_UNLABELED: False
+  CIFAR_C_LEVEL: 1
+  CIFAR_C_TYPE: 
+  NAME: LEVIR_CD
+  NUM_LABELED: -1
+  NUM_SHOTS: -1
+  ROOT: /home/dc001/data/
+  SOURCE_DOMAINS: ()
+  STL10_FOLD: -1
+  SUBSAMPLE_CLASSES: all
+  TARGET_DOMAINS: ()
+  VAL_PERCENT: 0.1
+INPUT:
+  COLORJITTER_B: 0.4
+  COLORJITTER_C: 0.4
+  COLORJITTER_H: 0.1
+  COLORJITTER_S: 0.4
+  CROP_PADDING: 4
+  CUTOUT_LEN: 16
+  CUTOUT_N: 1
+  GB_K: 21
+  GB_P: 0.5
+  GN_MEAN: 0.0
+  GN_STD: 0.15
+  INTERPOLATION: bicubic
+  NO_TRANSFORM: False
+  PIXEL_MEAN: [0.48145466, 0.4578275, 0.40821073]
+  PIXEL_STD: [0.26862954, 0.26130258, 0.27577711]
+  RANDAUGMENT_M: 10
+  RANDAUGMENT_N: 2
+  RGS_P: 0.2
+  RRCROP_SCALE: (0.08, 1.0)
+  SIZE: (224, 224)
+  TRANSFORMS: ('random_resized_crop', 'random_flip', 'normalize')
+MODEL:
+  BACKBONE:
+    NAME: ViT-B/16
+    PRETRAINED: True
+  HEAD:
+    ACTIVATION: relu
+    BN: True
+    DROPOUT: 0.0
+    HIDDEN_LAYERS: ()
+    NAME: 
+  INIT_WEIGHTS: 
+OPTIM:
+  ADAM_BETA1: 0.9
+  ADAM_BETA2: 0.98
+  BASE_LR_MULT: 0.1
+  GAMMA: 0.1
+  LR: 0.0025
+  LR_SCHEDULER: cosine
+  MAX_EPOCH: 200
+  MOMENTUM: 0.9
+  NAME: adamw
+  NEW_LAYERS: ()
+  RMSPROP_ALPHA: 0.99
+  SGD_DAMPNING: 0
+  SGD_NESTEROV: False
+  STAGED_LR: False
+  STEPSIZE: (-1,)
+  WARMUP_CONS_LR: 1e-05
+  WARMUP_EPOCH: 5
+  WARMUP_MIN_LR: 1e-05
+  WARMUP_RECOUNT: True
+  WARMUP_TYPE: constant
+  WEIGHT_DECAY: 0.1
+OUTPUT_DIR: output/levir_cd_protext
+RESUME: 
+SEED: 1
+TEST:
+  COMPUTE_CMAT: False
+  EVALUATOR: Classification
+  FINAL_MODEL: last_step
+  NO_TEST: False
+  PER_CLASS_RESULT: False
+  SPLIT: test
+TRAIN:
+  CHECKPOINT_FREQ: 0
+  COUNT_ITER: train_x
+  PRINT_FREQ: 20
+TRAINER:
+  CDAC:
+    CLASS_LR_MULTI: 10
+    P_THRESH: 0.95
+    RAMPUP_COEF: 30
+    RAMPUP_ITRS: 1000
+    STRONG_TRANSFORMS: ()
+    TOPK_MATCH: 5
+  COCOOP:
+    CTX_INIT: 
+    N_CTX: 16
+    PREC: fp16
+  COOP:
+    CLASS_TOKEN_POSITION: end
+    CSC: False
+    CTX_INIT: 
+    N_CTX: 16
+    PREC: fp16
+  CROSSGRAD:
+    ALPHA_D: 0.5
+    ALPHA_F: 0.5
+    EPS_D: 1.0
+    EPS_F: 1.0
+  DAEL:
+    CONF_THRE: 0.95
+    STRONG_TRANSFORMS: ()
+    WEIGHT_U: 0.5
+  DAELDG:
+    CONF_THRE: 0.95
+    STRONG_TRANSFORMS: ()
+    WEIGHT_U: 0.5
+  DDAIG:
+    ALPHA: 0.5
+    CLAMP: False
+    CLAMP_MAX: 1.0
+    CLAMP_MIN: -1.0
+    G_ARCH: 
+    LMDA: 0.3
+    WARMUP: 0
+  DOMAINMIX:
+    ALPHA: 1.0
+    BETA: 1.0
+    TYPE: crossdomain
+  ENTMIN:
+    LMDA: 0.001
+  FIXMATCH:
+    CONF_THRE: 0.95
+    STRONG_TRANSFORMS: ()
+    WEIGHT_U: 1.0
+  IVLP:
+    CTX_INIT: a photo of a
+    N_CTX_TEXT: 2
+    N_CTX_VISION: 2
+    PREC: fp16
+    PROMPT_DEPTH_TEXT: 9
+    PROMPT_DEPTH_VISION: 9
+  M3SDA:
+    LMDA: 0.5
+    N_STEP_F: 4
+  MAPLE:
+    CTX_INIT: a photo of a
+    N_CTX: 2
+    PREC: fp16
+    PROMPT_DEPTH: 9
+  MCD:
+    N_STEP_F: 4
+  MEANTEACHER:
+    EMA_ALPHA: 0.999
+    RAMPUP: 5
+    WEIGHT_U: 1.0
+  MIXMATCH:
+    MIXUP_BETA: 0.75
+    RAMPUP: 20000
+    TEMP: 2.0
+    WEIGHT_U: 100.0
+  MME:
+    LMDA: 0.1
+  NAME: ProText
+  PROMPTSRC:
+    CTX_INIT: a photo of a
+    GPA_MEAN: 15
+    GPA_STD: 1
+    IMAGE_LOSS_WEIGHT: 10
+    N_CTX_TEXT: 4
+    N_CTX_VISION: 4
+    PREC: fp16
+    PROMPT_DEPTH_TEXT: 9
+    PROMPT_DEPTH_VISION: 9
+    TEXT_LOSS_WEIGHT: 25
+  PROTEXT:
+    CROSS_DATASET: False
+    CTX_INIT: a photo of a
+    GPT_PATH: templates/CuPL_levir_cd_prompts.json
+    L_TWO_NORM: True
+    L_TWO_WEIGHT: 1000
+    N_CTX_TEXT: 16
+    N_CTX_VISION: 0
+    PREC: fp32
+    PROMPT_DEPTH_TEXT: 9
+    PROMPT_DEPTH_VISION: 0
+    USE_ATTRIBUTE_DATA: False
+    USE_TEMPLATES: True
+  SE:
+    CONF_THRE: 0.95
+    EMA_ALPHA: 0.999
+    RAMPUP: 300
+USE_CUDA: True
+VERBOSE: True
+VERSION: 1
+Collecting env info ...
+** System info **
+PyTorch version: 2.0.1+cu118
+Is debug build: False
+CUDA used to build PyTorch: 11.8
+ROCM used to build PyTorch: N/A
+
+OS: CentOS Linux release 7.9.2009 (Core) (x86_64)
+GCC version: (GCC) 11.1.0
+Clang version: Could not collect
+CMake version: version 3.25.0
+Libc version: glibc-2.17
+
+Python version: 3.9.18 | packaged by conda-forge | (main, Aug 30 2023, 03:49:32)  [GCC 12.3.0] (64-bit runtime)
+Python platform: Linux-3.10.0-1160.el7.nosig.x86_64-x86_64-with-glibc2.17
+Is CUDA available: True
+CUDA runtime version: 11.8.89
+CUDA_MODULE_LOADING set to: LAZY
+GPU models and configuration: GPU 0: NVIDIA A800 80GB PCIe
+Nvidia driver version: 535.86.10
+cuDNN version: Probably one of the following:
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn.so.8.9.1
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn_adv_infer.so.8.9.1
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn_adv_train.so.8.9.1
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn_cnn_infer.so.8.9.1
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn_cnn_train.so.8.9.1
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn_ops_infer.so.8.9.1
+/usr/local/cuda-11.6/targets/x86_64-linux/lib/libcudnn_ops_train.so.8.9.1
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn.so.8
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn_adv_infer.so.8
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn_adv_train.so.8
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn_cnn_infer.so.8
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn_cnn_train.so.8
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn_ops_infer.so.8
+/usr/local/cuda-12.0/targets/x86_64-linux/lib/libcudnn_ops_train.so.8
+HIP runtime version: N/A
+MIOpen runtime version: N/A
+Is XNNPACK available: True
+
+CPU:
+Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                32
+On-line CPU(s) list:   0-31
+Thread(s) per core:    1
+Core(s) per socket:    16
+Socket(s):             2
+NUMA node(s):          2
+Vendor ID:             GenuineIntel
+CPU family:            6
+Model:                 106
+Model name:            Intel(R) Xeon(R) Gold 6326 CPU @ 2.90GHz
+Stepping:              6
+CPU MHz:               1024.133
+CPU max MHz:           3500.0000
+CPU min MHz:           800.0000
+BogoMIPS:              5800.00
+Virtualization:        VT-x
+L1d cache:             48K
+L1i cache:             32K
+L2 cache:              1280K
+L3 cache:              24576K
+NUMA node0 CPU(s):     0-15
+NUMA node1 CPU(s):     16-31
+Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch epb cat_l3 invpcid_single intel_pt ssbd mba ibrs ibpb stibp ibrs_enhanced tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm cqm rdt_a avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local dtherm ida arat pln pts hwp hwp_act_window hwp_epp hwp_pkg_req avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq md_clear pconfig spec_ctrl intel_stibp flush_l1d arch_capabilities
+
+Versions of relevant libraries:
+[pip3] numpy==1.26.3
+[pip3] torch==2.0.1+cu118
+[pip3] torchaudio==2.0.2+cu118
+[pip3] torchvision==0.15.2+cu118
+[conda] cudatoolkit                  11.8.0              h4ba93d1_13          https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge
+[conda] numpy                        1.26.3              pypi_0               pypi
+[conda] torch                        2.0.1+cu118         pypi_0               pypi
+[conda] torchaudio                   2.0.2+cu118         pypi_0               pypi
+[conda] torchvision                  0.15.2+cu118        pypi_0               pypi
+        Pillow (10.2.0)
+
+Loading trainer: ProText
+Loading dataset: LEVIR_CD
+Traceback (most recent call last):
+  File "/home/dc001/ProText/train.py", line 259, in <module>
+    main(args)
+  File "/home/dc001/ProText/train.py", line 194, in main
+    trainer = build_trainer(cfg)
+  File "/home/dc001/ProText/Dassl.pytorch/dassl/engine/build.py", line 11, in build_trainer
+    return TRAINER_REGISTRY.get(cfg.TRAINER.NAME)(cfg)
+  File "/home/dc001/ProText/Dassl.pytorch/dassl/engine/trainer.py", line 324, in __init__
+    self.build_data_loader()
+  File "/home/dc001/ProText/Dassl.pytorch/dassl/engine/trainer.py", line 347, in build_data_loader
+    dm = DataManager(self.cfg)
+  File "/home/dc001/ProText/Dassl.pytorch/dassl/data/data_manager.py", line 79, in __init__
+    dataset = build_dataset(cfg)
+  File "/home/dc001/ProText/Dassl.pytorch/dassl/data/datasets/build.py", line 11, in build_dataset
+    return DATASET_REGISTRY.get(cfg.DATASET.NAME)(cfg)
+  File "/home/dc001/ProText/datasets/levir_cd.py", line 15, in __init__
+    train = self._read_data("train.txt")
+  File "/home/dc001/ProText/datasets/levir_cd.py", line 43, in _read_data
+    items.append(Datum(impath=pathA, impath2=pathB, label=label))
+TypeError: __init__() got an unexpected keyword argument 'impath2'
