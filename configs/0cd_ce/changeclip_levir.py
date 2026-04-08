@@ -31,6 +31,7 @@ find_unused_parameters = True
 model = dict(
     type='ChangeCLIP',
     pretrained=None,
+    protext_feat_path='/home/dc001/clip3-2/protext_expert_features_levir.pt',
     context_length=64,
     text_head=False,
     
@@ -45,30 +46,35 @@ model = dict(
         attn_drop_rate=0.0,
         drop_rate=0.0,
         attn_head_dim=[16, 32, 64, 128],
-        depths=[2, 2, 15, 2], 
+        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
+        #depths=[2, 2, 15, 2], 
+        depths=[2, 2, 27, 2], 
+        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         dims=[96, 192, 384, 768],
-        
-        #ssm_d_state=1,
-        #ssm_d_state=4,
-        ssm_d_state=16,
+        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
+        #ssm_d_state=16,
+        ssm_d_state=1,
+        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         ssm_ratio=2.0,
         ssm_dt_rank="auto",  # 或显式写 [6, 12, 24, 48]
         ssm_conv=3,
-
         #drop_path_rate=0.1,
-        drop_path_rate=0.3,
-
+        #drop_path_rate=0.3,
+        drop_path_rate=0.2, # 略微降低从 0.3 -> 0.2，防止欠拟合
+        # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
         output_dim=768,
         #output_dim=770,
         input_resolution=512,
         #input_resolution=224,
         # 加载训练好的 Mamba 主干权重
         #pretrained_mamba='/home/dc001/.cache/clip/vssm_base_0229_ckpt_epoch_237.pth',
-        #pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_ckpt_epoch_222.pth',
-        pretrained_mamba=None,
+        pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_ckpt_epoch_222.pth',
+        #pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_PATCHED.pth',
+        #pretrained_mamba=None,
+        #pretrained_mamba='/home/dc001/clip3-2/work_dirs/changeclip_sysu/iter_160000.pth',
         patchembed_version="v2",
-        #ssm_disable_z=True,
-        ssm_disable_z=False,
+        ssm_disable_z=True,
+        #ssm_disable_z=False,
     ),
     text_encoder=dict(
         type='CLIPTextContextEncoder',#clip_backbone
@@ -92,6 +98,8 @@ model = dict(
         outdim=768,#VIT-L
         #outdim=770,
         #outdim=1024,#RN50
+        #outdim=4, # 【关键修改】改为 4 以匹配 Neck 的 1540 (768*2 + 4)
+        # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
         style='pytorch'),
     #特征融合或特征提取
     neck=dict(
@@ -110,27 +118,23 @@ model = dict(
         dropout_ratio=0.1,
         norm_cfg=norm_cfg,
         align_corners=False,
-
-        #num_classes=2,
-        num_classes=1,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
-
+        num_classes=2,
         channels=256,
         loss_decode=dict(
             type='CrossEntropyLoss',
-            #use_sigmoid=False,
-            use_sigmoid=True,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
+            use_sigmoid=False,
             loss_weight=1.0,
             
             avg_non_ignore=True,#修改2026-3-2——————遥感图像变化检测配置解析
-            )
-        
+        )
     ),
 
     # === 启用 Mamba 增强模块 ===
     mamba_layers=True,
+    #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
     mamba_d_state=16,
     #mamba_d_state=1,
-    #mamba_d_state=4,
+    #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
     mamba_d_conv=4,
     mamba_expand=2,
     train_cfg=dict(),
@@ -141,24 +145,32 @@ model = dict(
 # in backbone
 optim_wrapper = dict(
     _delete_=True,
-    #type='OptimWrapper',
-    type='AmpOptimWrapper',
+    type='OptimWrapper',
+    #type='AmpOptimWrapper',
     optimizer=dict(
-        #type='AdamW', lr=1e-06, betas=(0.9, 0.999), weight_decay=0.01),
-        #type='AdamW', lr=1e-04, betas=(0.9, 0.999), weight_decay=0.01),#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
-        type='AdamW', lr=5e-05, betas=(0.9, 0.999), weight_decay=0.01),#修改2026-3-9——————PyTorch中BN与SyncBN的区别与应用
+        type='AdamW', lr=0.00003, betas=(0.9, 0.999), weight_decay=0.01),
+        #type='AdamW', lr=1e-6, betas=(0.9, 0.999), weight_decay=0.01),
         #修改2026-3-2——————遥感图像变化检测配置解析
     paramwise_cfg=dict(
         custom_keys={
             'absolute_pos_embed': dict(decay_mult=0.),
             'relative_position_bias_table': dict(decay_mult=0.),
-            'norm': dict(decay_mult=0.)
+            'norm': dict(decay_mult=0.),
+            # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
+            # 2026-4-8====修改=========见=======Gemini=============ChangeCLIP 项目介绍与解析=========
+            'protext_alpha_raw': dict(lr_mult=10.0), # 给它 10 倍学习率，让它快速找到最佳融合点
+            # 2026-4-8====修改=========见=======Gemini=============ChangeCLIP 项目介绍与解析=========
+            'backbone': dict(lr_mult=0.1),       # 预训练主干降低学习率
+            'text_encoder': dict(lr_mult=0.1),   # 预训练文本编码器降低学习率
+            'decode_head': dict(lr_mult=10.0),   # 解码头随机初始化，提高学习率加速收敛
+            'neck': dict(lr_mult=10.0),          # Neck 随机初始化，提高学习率
+            'context_decoder': dict(lr_mult=10.0),
+            # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
         }
     ),
     #修改2026-3-2——————遥感图像变化检测配置解析
     clip_grad=dict(max_norm=1.0, norm_type=2)  # 添加梯度裁剪
 )
-
 param_scheduler = [
     dict(
         #type='LinearLR', start_factor=1e-3, by_epoch=False, begin=0, end=1500),
