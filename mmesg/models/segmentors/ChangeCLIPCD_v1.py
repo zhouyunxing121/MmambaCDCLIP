@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import List, Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,16 +10,20 @@ import seaborn as sns
 import cv2
 from PIL import Image
 import os
+
 from mmseg.models.utils import resize
 from mmseg.models import builder
 from mmcv.cnn import ConvModule
 from mmseg.models.utils.se_layer import SELayer_v2 as SELayer
 from mmseg.models.utils.clip_func import clip_infer, init_clip
+
 from ..utils.untils import tokenize
+
 from mmseg.registry import MODELS
 from mmseg.utils import (ConfigType, OptConfigType, OptMultiConfig,
                          OptSampleList, SampleList, add_prefix)
 from .base import BaseSegmentor
+
 from mamba_ssm import Mamba
 
 class MambaLayer(nn.Module):
@@ -27,10 +32,10 @@ class MambaLayer(nn.Module):
         super().__init__()
         self.dim = dim
         self.mamba = Mamba(
-            d_model=dim,  
-            d_state=d_state,  
-            d_conv=d_conv,  
-            expand=expand,  
+            d_model=dim,  # Model dimension
+            d_state=d_state,  # SSM state expansion factor
+            d_conv=d_conv,  # Local convolution width
+            expand=expand,  # Block expansion factor
         )
 
     def forward(self, x):
@@ -38,7 +43,8 @@ class MambaLayer(nn.Module):
         x: [B, N, C]  (sequence)
         returns: [B, N, C]
         """
-        
+        #return self.mamba(x)
+        # Mamba前向
         out = self.mamba(x)
         #修改——————2026-2-25——————doubao——————ChangeCLIP模型定义
         # 增强数值稳定（防止nan）
@@ -109,7 +115,9 @@ class ChangeCLIP(BaseSegmentor):
                 print('backbone.pretrained is :', backbone.pretrained)
             print('text_encoder.pretrained is :', text_encoder.pretrained)
         else:
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             print("Cannot find pre-trained weight, using CLIP pre-trained weight")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             text_encoder.pretrained = '/home/dc001/.cache/clip/RN50.pt'
 
         """
@@ -140,7 +148,28 @@ class ChangeCLIP(BaseSegmentor):
         # 注意：不再设置 backbone.pretrained！由 backbone 内部处理
         # （CLIPMambaWithAttention 已通过 pretrained_mamba 加载）
         self.backbone = MODELS.build(backbone)
-
+        """
+        #dummy_input = torch.zeros(1, 6, 224, 224)  # 单图 dummy input
+        dummy_input = torch.zeros(1, 3, 224, 224)  
+        """
+        """
+        # 根据 backbone 配置的 in_chans 动态创建 dummy input
+        in_chans = backbone.get('in_chans', 3)
+        dummy_input = torch.zeros(1, in_chans, 224, 224)
+        with torch.no_grad():
+            dummy_feats = self.backbone(dummy_input)
+            # 获取前4个 stage 的通道数 (忽略最后的 [global, local])
+            actual_feat_channels = [f.shape[1] for f in dummy_feats[:-1]]
+        print("Detected backbone feature channels:", actual_feat_channels)
+        """
+        """
+        if hasattr(backbone, 'dims'):
+            actual_feat_channels = backbone['dims']  # [96, 192, 384, 768]
+        else:
+            #actual_feat_channels = [96, 192, 384, 768]  # 默认值
+            actual_feat_channels = [96, 192, 384, 770]  
+        print("Using fixed backbone feature channels:", actual_feat_channels)
+        """
         actual_feat_channels = [96, 192, 384, 768]  
         print("Using fixed backbone feature channels:", actual_feat_channels)
         #actual_feat_channels2 = [96, 192, 384, 770]
@@ -202,7 +231,48 @@ class ChangeCLIP(BaseSegmentor):
                 print(f"❌ Failed to load ProText features: {e}")
                 self.use_protext = False
         # 2026-4-8====修改=========见=======Gemini=============ChangeCLIP 项目介绍与解析=========
+        """
+        self.minus_conv = nn.Sequential(
+        ConvModule(
+                    in_channels=self.minus_channel[0],
+                    out_channels=256,
+                    kernel_size=1),
+                    ConvModule(
+                    in_channels=self.minus_channel[1],
+                    out_channels=256,
+                    kernel_size=1),
+                    ConvModule(
+                    in_channels=self.minus_channel[2],
+                    out_channels=256,
+                    kernel_size=1),
+                    ConvModule(
+                    in_channels=self.minus_channel[3],
+                    out_channels=256,
+                    kernel_size=1)
+                    )
+        self.channel_att = nn.Sequential(SELayer(768, 256), SELayer(768, 256), SELayer(768, 256), SELayer(768, 256))
+        """
         
+
+        """
+       
+        actual_feat_channels2 = [96, 192, 384, 770]
+        self.minus_conv = nn.ModuleList([  # 改为 ModuleList!
+            ConvModule(
+                in_channels=d, 
+                out_channels=256, 
+                kernel_size=1
+                ) for d in actual_feat_channels
+            ])
+
+        self.channel_att = nn.ModuleList([  # 改为 ModuleList!
+            #SELayer(d * 3 + 256, 256)  
+            # x_orig*diff (d) + x_minus (256) + x_orig (d) → total = 2d + 256? 
+            # 实际融合是: torch.cat([x_orig*x_diff (d), x_minus (256), x_orig (d)], dim=1) → d + 256 + d = 2d + 256
+            SELayer(2 * d + 256, 256)
+            for d in actual_feat_channels
+            ])
+        """
 
         #2026-1-11修改，见——看看原ChangeCLIP项目怎么解决的
         score_concat_index = 3
@@ -211,8 +281,13 @@ class ChangeCLIP(BaseSegmentor):
         num_score_channels = self.num_classes  # = 2
         print("num_score_channels:", num_score_channels)
         #2026-1-13修改——————见————————770通道特征图报错
-        
-
+        """
+        # x_clip 的通道数（backbone + 可选 score map）
+        x_clip_channels = [
+            ch + (score_channels if i == score_concat_index else 0)
+            for i, ch in enumerate(actual_feat_channels)
+        ]
+        """
 
         #2026-1-13修改——————见————————770通道特征图报错
         x_clip_channels = [
@@ -220,6 +295,7 @@ class ChangeCLIP(BaseSegmentor):
             for i, ch in enumerate(actual_feat_channels)
             ]
         print("x_clip_channels:", x_clip_channels)
+
         #2026-1-13修改——————见————————770通道特征图报错
 
 
@@ -235,6 +311,10 @@ class ChangeCLIP(BaseSegmentor):
         print("fused_channels:", fused_channels)
 
         self.channel_att = nn.ModuleList([
+            #SELayer(2*ch+256, 256) for ch in fused_channels 
+            #SELayer(ch, 256) for ch in fused_channels
+            #ratio=16
+            #out_channels=
             SELayer(ch, out_channels=256,ratio=16) for ch in fused_channels
             #SELayer(ch, out_channels=None,ratio=16) for ch in fused_channels
             #2026-1-29修改——————见————————SELayer_v2使用有误
@@ -243,8 +323,39 @@ class ChangeCLIP(BaseSegmentor):
         ])
         #2026-1-11修改，见——看看原ChangeCLIP项目怎么解决的
 
+        """
         self.mamba_layers = mamba_layers
-        
+        if mamba_layers:
+        # 为每个空间层级（如 4 个尺度）创建 Mamba 层
+            mamba_dims = [256, 512, 1024, 2048]  
+            self.mamba_modules = nn.ModuleList([
+                MambaLayer(dim=d, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                #MambaLayer(dim=768, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                #x = [torch.cat([x[i]*x_diff[i], x_minus[i], x[i]], dim=1)],
+                for d in mamba_dims
+            ])
+        """
+    
+        self.mamba_layers = mamba_layers
+        """
+        if mamba_layers:
+            #mamba_dims = [256, 512, 1024, 2048]  
+            #与 backbone 输出 [96,192,384,768] 不匹配
+
+            # 第一组：用于单时相特征（xA 和 xB 分别处理）
+            self.mamba_modules_single = nn.ModuleList([
+                MambaLayer(dim=d, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                for d in mamba_dims
+            ])
+
+            # 第二组：用于融合后的特征（x_orig * weight + minus 特征拼接后）
+            self.mamba_modules_fused = nn.ModuleList([
+                MambaLayer(dim=d * 3, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                #for d in mamba_dims  
+                for d in [256, 512, 1024, 2048]
+            ])
+        """
+
         # 用实际通道数初始化 Mamba 模块
         if self.mamba_layers:
             # 第一组：单时相 Mamba (通道数 = actual_feat_channels)
@@ -253,7 +364,13 @@ class ChangeCLIP(BaseSegmentor):
                 for d in actual_feat_channels
             ])
             # 第二组：融合后 Mamba (通道数 = 3 * actual_feat_channels, 因拼接了3部分)
-
+            """
+            self.mamba_modules_fused = nn.ModuleList([
+                MambaLayer(dim=2*d + 256, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                #MambaLayer(dim=d * 3, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                for d in actual_feat_channels
+            ])
+            """
             ##2026-1-11修改，见——看看原ChangeCLIP项目怎么解决的
             # Mamba fused 模块也需用 fused_channels
             ## 融合后通道: [x*x_diff (C), x_minus (256), x (C)] → 2*C + 256, 其中 C = x_clip_channels[i]
@@ -327,6 +444,23 @@ class ChangeCLIP(BaseSegmentor):
         x_cat.append([x_g, x_l])
         textA, textB = self.get_cls_text(batch_img_metas, False)
 
+        """
+        text_embeddingsA, x_clipA, score_mapA = self.after_extract_feat_clip(xA, textA)
+        text_embeddingsB, x_clipB, score_mapB = self.after_extract_feat_clip(xB, textB)
+        #多尺度空间融合
+        # (1) 原始特征拼接
+        #将A和B在每个尺度上的特征图在通道维度上拼接。直接空间融合
+        x_orig = [torch.cat([x_clipA[i], x_clipB[i]], dim=1) for i in range(len(x_clipA))]
+        # (2) 差异特征提取
+        #计算A和B特征图的绝对差值，并通过1x1卷积降维
+        x_minus = [self.minus_conv[i](torch.abs(x_clipA[i]-x_clipB[i])) for i in range(len(x_clipA))]
+        #索引访问 [i]	应改为 nn.ModuleList，否则会报错！修正建议：self.minus_conv = nn.ModuleList([...])
+        #计算A和B特征图的余弦相似度，并转换为差异权重图
+        x_diff = [
+            F.sigmoid(1-torch.cosine_similarity(x_clipA[i], x_clipB[i], dim=1)).unsqueeze(1) 
+            for i in range(len(x_clipA))
+            ]
+        """
         #2026-1-13修改——————见————————770通道特征图报错
         text_embeddingsA, x_clipA_raw, x_clipA_fused, score_mapA = self.after_extract_feat_clip(xA, textA)
         text_embeddingsB, x_clipB_raw, x_clipB_fused, score_mapB = self.after_extract_feat_clip(xB, textB)
@@ -421,38 +555,6 @@ class ChangeCLIP(BaseSegmentor):
             return enhanced_text_features
         else:
             return base_text_features
-    
-
-    def _enhance_text_features(self, base_text_embeddings):
-        """
-        核心融合逻辑：将基础 CLIP 特征与 ProText 专家特征在单位超球面上插值
-        base_text_embeddings: [B, 2, C]
-        """
-        if not getattr(self, 'use_protext', False) or not hasattr(self, 'protext_embeddings'):
-            return base_text_embeddings
-
-        # 1. 基础特征 L2 归一化
-        base_norm = F.normalize(base_text_embeddings, dim=-1)
-        
-        # 2. 计算当前的融合比例 (0 ~ 1)
-        alpha = torch.sigmoid(self.protext_alpha_raw)
-        
-        # 3. 专家特征 L2 归一化
-        expert_norm = F.normalize(self.protext_embeddings, dim=-1) # [2, C]
-        
-        # 4. 维度对齐: expert_norm 从 [2, C] 扩展到 [B, 2, C]
-        if base_norm.dim() == 3 and expert_norm.dim() == 2:
-            expert_norm = expert_norm.unsqueeze(0).expand(base_norm.shape[0], -1, -1)
-            
-        # 兜底检查维度
-        assert base_norm.shape[-1] == expert_norm.shape[-1], \
-            f"维度不匹配! Base: {base_norm.shape[-1]}, Expert: {expert_norm.shape[-1]}"
-        
-        # 5. 球面插值融合
-        enhanced_text_embeddings = (1.0 - alpha) * base_norm + alpha * expert_norm
-        
-        # 6. 融合后必须再次 L2 归一化
-        return F.normalize(enhanced_text_embeddings, dim=-1)
 
 # 2026-4-8====修改=========见=======Gemini=============ChangeCLIP 项目介绍与解析=========
     def _decode_head_forward_train(self, inputs: List[Tensor],
@@ -572,7 +674,60 @@ class ChangeCLIP(BaseSegmentor):
         score_map = torch.einsum('bchw,bkc->bkhw', visual_embeddings, text)
         x_orig[self.score_concat_index] = torch.cat([x_orig[self.score_concat_index], score_map], dim=1)
         return text_embeddings, x_orig, score_map
+    """
+    def after_extract_feat_clip(self, x, text):
+        # x 是 backbone 输出的多尺度特征列表: [feat1, feat2, feat3, feat4, (global, local)]
+        x_orig = list(x[0:4])## 前4个尺度的特征图 [B,C,H,W]
+        global_feat, visual_embeddings = x[4]## CLIP 的全局+局部特征
 
+        B, C, H, W = visual_embeddings.shape
+        if self.context_feature == 'attention':
+            visual_context = torch.cat([
+                global_feat.reshape(B, C, 1), 
+                visual_embeddings.reshape(B, C, H*W)
+                ], dim=2).permute(0, 2, 1)  # B, N, C
+
+        # (B, K, C)
+        contexts_ = torch.cat([self.contexts2] * int(x[0].size()[0]), dim=0)
+        text_embeddings = self.text_encoder(text.to(global_feat.device), contexts_).expand(B, -1, -1)
+        # text_embeddings = self.text_encoder(self.texts.to(global_feat.device), self.contexts).expand(B, -1, -1)
+        
+
+        # update text_embeddings by visual_context!更新文本嵌入
+        # (B, 1, C)
+        text_diff = self.context_decoder(text_embeddings, visual_context)
+        # (B, K, C)
+        text_embeddings = text_embeddings + self.gamma * text_diff
+
+        #对每个尺度特征应用 Mamba
+        x_clip = []
+        for i, feat in enumerate(x_orig):
+            if self.mamba_layers and i < len(self.mamba_modules_single):
+            # 转为序列
+                seq_feat = self.spatial_to_sequence(feat)  # [B, H*W, C]
+            # 应用 Mamba
+                seq_feat = self.mamba_modules_single[i](seq_feat)  # [B, H*W, C]
+            # 转回空间形式
+                h, w = feat.shape[2], feat.shape[3]
+                feat = self.sequence_to_spatial(seq_feat, h, w)  # [B, C, H, W]
+            x_clip.append(feat)
+        
+        # compute score map and concat  #计算 score map 并拼接
+        #B, K, C = text_embeddings.shape
+        #visual_embeddings = F.normalize(visual_embeddings, dim=1, p=2)
+        #text = F.normalize(text_embeddings, dim=2, p=2)
+        #score_map = torch.einsum('bchw,bkc->bkhw', visual_embeddings, text)
+        #x_orig[self.score_concat_index] = torch.cat([x_orig[self.score_concat_index], score_map], dim=1)
+        
+        # 计算 score map 并拼接
+        visual_embeddings_norm = F.normalize(visual_embeddings, dim=1, p=2)
+        text_norm = F.normalize(text_embeddings, dim=2, p=2)
+        score_map = torch.einsum('bchw,bkc->bkhw', visual_embeddings_norm, text_norm)
+
+        # 将 score_map 拼接到指定层
+        x_clip[self.score_concat_index] = torch.cat([x_clip[self.score_concat_index], score_map], dim=1)
+        return text_embeddings, x_clip, score_map
+    """
     #2026-1-13修改——————见————————770通道特征图报错
     def after_extract_feat_clip(self, x, text):
         x_orig = list(x[0:4])
@@ -586,11 +741,7 @@ class ChangeCLIP(BaseSegmentor):
             ], dim=2).permute(0, 2, 1)
 
         contexts_ = torch.cat([self.contexts2] * int(x[0].size()[0]), dim=0)
-        #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         text_embeddings = self.text_encoder(text.to(global_feat.device), contexts_).expand(B, -1, -1)
-        # 👇👇👇 🔥 新增：在此处注入 ProText 专家特征进行强化 🔥 👇👇👇
-        text_embeddings = self._enhance_text_features(text_embeddings)
-        #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         text_diff = self.context_decoder(text_embeddings, visual_context)
         text_embeddings = text_embeddings + self.gamma * text_diff
 
@@ -660,7 +811,13 @@ class ChangeCLIP(BaseSegmentor):
         x_cat.append([x_g, x_l])
         textA, textB = self.get_cls_text(data_samples)
 
-       
+        """
+        text_embeddingsA, x_clipA, score_mapA = self.after_extract_feat_clip(xA, textA)
+        text_embeddingsB, x_clipB, score_mapB = self.after_extract_feat_clip(xB, textB)
+        x_orig = [torch.cat([x_clipA[i], x_clipB[i]], dim=1) for i in range(len(x_clipA))]
+        x_minus = [self.minus_conv[i](torch.abs(x_clipA[i]-x_clipB[i])) for i in range(len(x_clipA))]
+        x_diff = [F.sigmoid(1-torch.cosine_similarity(x_clipA[i], x_clipB[i], dim=1)).unsqueeze(1) for i in range(len(x_clipA))]
+        """
         #2026-1-13修改——————见————————770通道特征图报错
         text_embeddingsA, x_clipA_raw, x_clipA_fused, score_mapA = self.after_extract_feat_clip(xA, textA)
         text_embeddingsB, x_clipB_raw, x_clipB_fused, score_mapB = self.after_extract_feat_clip(xB, textB)
@@ -672,10 +829,14 @@ class ChangeCLIP(BaseSegmentor):
             F.sigmoid(1 - torch.cosine_similarity(x_clipA_raw[i], x_clipB_raw[i], dim=1)).unsqueeze(1) 
             for i in range(len(x_clipA_raw))
             ]
+        
+        
         #2026-1-13修改——————见————————770通道特征图报错
 
 
         score_map_diff = score_mapA-score_mapB
+
+        
 
         losses = dict()
         if self.text_head:
@@ -716,6 +877,9 @@ class ChangeCLIP(BaseSegmentor):
             loss_identity1 = self._identity_head_forward_train(
                 x[0], data_samples, 'aux_layer0')
             losses.update(loss_identity1)
+            # loss_identity1 = self._identity_head_forward_train(
+            #     x[0], data_samples, 'aux_layer0')
+            # losses.update(loss_identity1)
             loss_identity2 = self._identity_head_forward_train(
                 x[1], data_samples, 'aux_layer1')
             losses.update(loss_identity2)
@@ -725,6 +889,9 @@ class ChangeCLIP(BaseSegmentor):
             loss_identity4 = self._identity_head_forward_train(
                 x[3], data_samples, 'aux_layer3')
             losses.update(loss_identity4)
+            # loss_identity4 = self._identity_head_forward_train(
+            #     x[3], data_samples, 'aux_layer3')
+            # losses.update(loss_identity4)
 
         if self.with_auxiliary_head:
             loss_aux = self._auxiliary_head_forward_train(
@@ -751,6 +918,7 @@ class ChangeCLIP(BaseSegmentor):
             ] * inputs.shape[0]
 
         seg_logits = self.inference(inputs, batch_img_metas)
+
         return self.postprocess_result(seg_logits, data_samples)
 
     def _forward(self,
@@ -789,12 +957,30 @@ class ChangeCLIP(BaseSegmentor):
         textA.append(torch.cat([tokenize(c, context_length=self.context_length) for c in [backA, foreA]]).unsqueeze(0))
         textB.append(torch.cat([tokenize(c, context_length=self.context_length) for c in [backB, foreB]]).unsqueeze(0))
         textA, textB = torch.cat(textA, dim=0), torch.cat(textB, dim=0)
+        """
+        text_embeddingsA, x_clipA, score_mapA = self.after_extract_feat_clip(xA, textA)
+        text_embeddingsB, x_clipB, score_mapB = self.after_extract_feat_clip(xB, textB)
 
+        x_orig = [
+        torch.cat([x_clipA[i], x_clipB[i]], dim=1) 
+        for i in range(len(x_clipA))
+        ]
+
+        x_minus = [
+        self.minus_conv[i](torch.abs(x_clipA[i]-x_clipB[i])) 
+        for i in range(len(x_clipA))
+        ]
+        x_diff = [
+        F.sigmoid(1-torch.cosine_similarity(x_clipA[i], x_clipB[i], dim=1)).unsqueeze(1) 
+        for i in range(len(x_clipA))
+        ]
+        """
 
 
         #2026-1-13修改——————见————————770通道特征图报错
         text_embeddingsA, x_clipA_raw, x_clipA_fused, score_mapA = self.after_extract_feat_clip(xA, textA)
         text_embeddingsB, x_clipB_raw, x_clipB_fused, score_mapB = self.after_extract_feat_clip(xB, textB)
+
         # 注意：后续使用 x_clipA_fused / x_clipB_fused 进行拼接
         x_orig = [
             torch.cat([x_clipA_fused[i], x_clipB_fused[i]], dim=1) 
@@ -808,6 +994,10 @@ class ChangeCLIP(BaseSegmentor):
             F.sigmoid(1 - torch.cosine_similarity(x_clipA_raw[i], x_clipB_raw[i], dim=1)).unsqueeze(1) 
             for i in range(len(x_clipA_raw))
             ]
+
+
+
+
 
         #2026-1-13修改——————见————————770通道特征图报错
 
