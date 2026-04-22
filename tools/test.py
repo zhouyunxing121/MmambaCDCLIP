@@ -103,6 +103,7 @@ def main():
         cfg = trigger_visualization_hook(cfg, args)
 
     if args.tta:
+
         cfg.test_dataloader.dataset.pipeline = cfg.tta_pipeline
         cfg.tta_model.module = cfg.model
         cfg.model = cfg.tta_model

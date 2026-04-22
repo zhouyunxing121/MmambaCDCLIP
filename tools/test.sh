@@ -1,24 +1,12 @@
 #!/bin/bash
-#SBATCH -o job.%j.out
-#SBATCH --partition=a800x4
-#SBATCH --nodelist=gpu_03 
-#SBATCH -J pytorch_job_1
-#SBATCH -N 1
-#SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:2
-#SBATCH --qos=normal
 
-export OMP_NUM_THREADS=2
-export MKL_NUM_THREADS=2
-source /home/dc001/miniconda3/bin/activate changeclip
-
-
-CDPATH=/home/dc001/data
+#CDPATH=/home/dc001/data
+CDPATH=/online1/wangshiying_group/wangshiying/gjx/data
 data_name=$1
 config_file=$2
 num_gpu=$3
 work_dirs=$4
-model_checkpoint=$(find "$work_dirs" -name 'best_mIoU_iter_*.pth' -type f -print -quit)
+model_checkpoint=$(ls -t "$work_dirs"/best_mIoU_iter_*.pth | head -n 1)
 echo $model_checkpoint
 if [ "$data_name" == "WHUCD" ]; then
     label_dir="$CDPATH/WHUCD/cut_data/label"

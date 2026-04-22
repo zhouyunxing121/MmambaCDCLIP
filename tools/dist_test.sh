@@ -1,16 +1,19 @@
 #!/bin/bash
 #SBATCH -o job.%j.out
-#SBATCH --partition=a800x4
-#SBATCH --nodelist=gpu_03 
-#SBATCH -J pytorch_job_1
+#SBATCH --partition=gpu
+#SBATCH -J j_job
 #SBATCH -N 1
-#SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:2
+#SBATCH --ntasks-per-node=8
+#SBATCH --gres=gpu:1
 #SBATCH --qos=normal
 
-export OMP_NUM_THREADS=2
-export MKL_NUM_THREADS=2
-source /home/dc001/miniconda3/bin/activate changeclip
+export OMP_NUM_THREADS=8
+export MKL_NUM_THREADS=8
+
+source /home/wangshiying_group/wangshiying/data/miniconda3/etc/profile.d/conda.sh
+conda activate changeclip
+
+export PYTHONPATH=/online1/wangshiying_group/wangshiying/gjx/clip3-2:$PYTHONPATH
 
 CONFIG=$1
 CHECKPOINT=$2
@@ -31,7 +34,3 @@ torchrun \
     $CONFIG \
     $CHECKPOINT \
     --launcher pytorch 
-    
-
-
-
