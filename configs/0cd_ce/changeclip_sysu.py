@@ -13,6 +13,7 @@ import os
 data_root = '/home/dc001/data/SYSU-CD'
 metainfo = dict(
                 classes=('unchange', 'change'),
+                #classes=('background', 'building'),
                 palette=[[0, 0, 0], [255, 255, 255]])
 
 crop_size = (256, 256)
@@ -26,15 +27,14 @@ data_preprocessor = dict(
 #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 #norm_cfg = dict(type='BN', requires_grad=True)
-#2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-
-#2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-#find_unused_parameters = True
-find_unused_parameters = False
+find_unused_parameters = True
+#find_unused_parameters = False
 #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
 model = dict(
     type='ChangeCLIP',
-    pretrained=None,
+    #pretrained=None,
+    pretrained='/home/dc001/.cache/clip/ViT-L-14.pt',
+    #pretrained='/online1/wangshiying_group/wangshiying/.cache/clip/ViT-L-14.pt',
     context_length=64,
     text_head=False,
     
@@ -42,39 +42,30 @@ model = dict(
         type='CLIPMambaWithAttention',  
         patch_size=4,
         in_chans=3,
-        #in_chans=6,
-        embed_dim=768,#embed_dim = dims[-1]
+        embed_dim=768,#ViT-L-14
+        #embed_dim = dims[-1]
+        #embed_dim=1024,#RN50
         num_heads=12,
         num_layers=12,
         attn_drop_rate=0.0,
         drop_rate=0.0,
         attn_head_dim=[16, 32, 64, 128],
-        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-        #depths=[2, 2, 15, 2], 
         depths=[2, 2, 27, 2], 
-        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         dims=[96, 192, 384, 768],
-        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-        #ssm_d_state=16,
-        ssm_d_state=1,
-        #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
+        ssm_d_state=16,
         ssm_ratio=2.0,
-        ssm_dt_rank="auto",  # 或显式写 [6, 12, 24, 48]
+        ssm_dt_rank="auto",  
         ssm_conv=3,
-        #drop_path_rate=0.1,
         #drop_path_rate=0.3,
-        drop_path_rate=0.2, # 略微降低从 0.3 -> 0.2，防止欠拟合
-        # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
+        drop_path_rate=0.2, # 略微降低防止欠拟合
         output_dim=768,
-        #output_dim=770,
+        #output_dim=1024,
         input_resolution=512,
-        #input_resolution=224,
         # 加载训练好的 Mamba 主干权重
-        #pretrained_mamba='/home/dc001/.cache/clip/vssm_base_0229_ckpt_epoch_237.pth',
-        pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_ckpt_epoch_222.pth',
-        #pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_PATCHED.pth',
+        pretrained_mamba='/home/dc001/.cache/clip/vssm_base_0229_ckpt_epoch_237.pth',
+        #pretrained_mamba=''/online1/wangshiying_group/wangshiying/.cache/clip/vssm_base_0229_ckpt_epoch_237.pth',
         #pretrained_mamba=None,
-        #pretrained_mamba='/home/dc001/clip3-2/work_dirs/changeclip_sysu/iter_160000.pth',
+        
         patchembed_version="v2",
         ssm_disable_z=True,
         #ssm_disable_z=False,
@@ -83,7 +74,6 @@ model = dict(
         type='CLIPTextContextEncoder',#clip_backbone
         context_length=77,
         embed_dim=768,#VIT-L
-        #embed_dim=770,
         #embed_dim=1024,#RN50
         transformer_width=512,
         transformer_heads=8,
@@ -96,19 +86,15 @@ model = dict(
         transformer_heads=4,
         transformer_layers=3,
         visual_dim=768,
-        #visual_dim=770,
+        #visual_dim=1024,
         dropout=0.1,
         outdim=768,#VIT-L
-        #outdim=770,
         #outdim=1024,#RN50
-        #outdim=4, # 【关键修改】改为 4 以匹配 Neck 的 1540 (768*2 + 4)
-        # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
         style='pytorch'),
     #特征融合或特征提取
     neck=dict(
         type='FPN',#mmseg\models\necks\fpn.py
-        #in_channels=[96,192,384,772],# 每个都 *2，最后一层 +2 再 *2
-        #in_channels=[96, 192, 384, 768],# 与 backbone.dims 一致
+        #in_channels=[512, 1024, 2048, 4100],#ResNet
         in_channels=[192, 384, 768, 1540],  # 每个都 *2，最后一层 +2 再 *2
         out_channels=256,
         num_outs=4),
@@ -128,16 +114,13 @@ model = dict(
             use_sigmoid=False,
             loss_weight=1.0,
             
-            avg_non_ignore=True,#修改2026-3-2——————遥感图像变化检测配置解析
+            #avg_non_ignore=True,#修改2026-3-2——————遥感图像变化检测配置解析
         )
     ),
 
-    # === 启用 Mamba 增强模块 ===
+   
     mamba_layers=True,
-    #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
     mamba_d_state=16,
-    #mamba_d_state=1,
-    #2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
     mamba_d_conv=4,
     mamba_expand=2,
     train_cfg=dict(),
@@ -148,11 +131,15 @@ model = dict(
 # in backbone
 optim_wrapper = dict(
     _delete_=True,
-    type='OptimWrapper',
-    #type='AmpOptimWrapper',
+    #type='OptimWrapper',
+    type='AmpOptimWrapper',
     optimizer=dict(
-        type='AdamW', lr=0.00003, betas=(0.9, 0.999), weight_decay=0.01),
-        #type='AdamW', lr=1e-6, betas=(0.9, 0.999), weight_decay=0.01),
+        type='AdamW', 
+        lr=0.00003, 
+        betas=(0.9, 0.999), 
+        weight_decay=0.01
+        ),
+
         #修改2026-3-2——————遥感图像变化检测配置解析
     paramwise_cfg=dict(
         custom_keys={
@@ -174,7 +161,12 @@ optim_wrapper = dict(
 
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=6000),#预热步数为总步数的 5% 左右
+        type='LinearLR', 
+        start_factor=1e-6, 
+        by_epoch=False, 
+        begin=0, 
+        end=1500
+        ),#预热步数为总步数的 5% 左右
         #修改2026-3-2——————遥感图像变化检测配置解析
     dict(
         type='PolyLR',
@@ -184,21 +176,18 @@ param_scheduler = [
         #power=1.0,
         power=0.9,
         #修改2026-3-2——————遥感图像变化检测配置解析
-        begin=6000,
+        begin=1500,
+        #begin=6000,
         #预热步数为总步数的 5% 左右
-        end=120000,
+        end=20000,
+        #end=120000,
         by_epoch=False,
     )
 ]
 
 train_dataloader = dict(
-    #batch_size=20,
-    #batch_size=4,
-    #batch_size=1,
-    batch_size=8,
-    #num_workers=8,
-    num_workers=4,
-    #num_workers=2,
+    batch_size=20,
+    num_workers=8,
     dataset=dict(
         data_root=data_root,
         metainfo=metainfo,
@@ -221,13 +210,21 @@ test_dataloader = dict(
         ann_file='test.txt'))
 
 # training schedule for 120k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=120000, val_interval=1500)
+train_cfg = dict(type='IterBasedTrainLoop', 
+                 max_iters=20000, 
+                 val_interval=500
+                )
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
-    logger=dict(type='LoggerHook', interval=10, log_metric_by_epoch=False),
+    logger=dict(type='LoggerHook', 
+                interval=10, 
+                log_metric_by_epoch=False),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=10000, save_best='mIoU'),
+    checkpoint=dict(type='CheckpointHook', 
+                    by_epoch=False, 
+                    interval=10000, 
+                    save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook')) 

@@ -1,8 +1,7 @@
 custom_imports = dict(
     imports=[
         'mmseg.models.backbones.clip_backbone',
-        'mmseg.models.segmentors.ChangeCLIPCD',
-        'mmesg.engine.hooks.alpha_record_hook'
+        'mmseg.models.segmentors.ChangeCLIPCD'
         ],
     allow_failed_imports=False
 )
@@ -10,29 +9,35 @@ _base_ = [
     '../_base_/datasets/base_cd.py',
     '../_base_/default_runtime.py', 
     '../_base_/schedules/schedule_160k.py']
-
 import os
-data_root ='/home/dc001/data/LEVIR-CD'
-
+data_root = '/home/dc001/data/SYSU-CD'
 metainfo = dict(
                 classes=('unchange', 'change'),
+                #classes=('background', 'building'),
                 palette=[[0, 0, 0], [255, 255, 255]])
 
 crop_size = (256, 256)
-#crop_size = (512, 512)
 data_preprocessor = dict(
     size=crop_size,
-    type='SegDataPreProcessor',# mmseg\models\data_preprocessor.py
+    type='SegDataPreProcessor',#mmseg\models\data_preprocessor.py
     mean=[123.675, 116.28, 103.53, 123.675, 116.28, 103.53],
     std=[58.395, 57.12, 57.375, 58.395, 57.12, 57.375])
 
+
+#2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 #norm_cfg = dict(type='BN', requires_grad=True)
+#2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
+
+#2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
 find_unused_parameters = True
+#find_unused_parameters = False
+#2026-4-8-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
 model = dict(
     type='ChangeCLIP',
-    pretrained=None,
-    protext_feat_path='/home/dc001/clip3-2/protext_expert_features_levir.pt',
+    #pretrained=None,
+    #pretrained='/home/dc001/.cache/clip/RN50.pt',
+    pretrained='/home/dc001/.cache/clip/ViT-L-14.pt',
     context_length=64,
     text_head=False,
     
@@ -41,7 +46,9 @@ model = dict(
         patch_size=4,
         in_chans=3,
         #in_chans=6,
-        embed_dim=768,#embed_dim = dims[-1]
+        embed_dim=768,#ViT-L-14
+        #embed_dim = dims[-1]
+        #embed_dim=1024,#RN50
         num_heads=12,
         num_layers=12,
         attn_drop_rate=0.0,
@@ -52,9 +59,10 @@ model = dict(
         depths=[2, 2, 27, 2], 
         #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         dims=[96, 192, 384, 768],
+        
         #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-        #ssm_d_state=16,
-        ssm_d_state=1,
+        ssm_d_state=16,
+        #ssm_d_state=1,
         #2026-4-6-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
         ssm_ratio=2.0,
         ssm_dt_rank="auto",  # 或显式写 [6, 12, 24, 48]
@@ -64,15 +72,15 @@ model = dict(
         drop_path_rate=0.2, # 略微降低从 0.3 -> 0.2，防止欠拟合
         # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
         output_dim=768,
+        #output_dim=1024,
         #output_dim=770,
         input_resolution=512,
         #input_resolution=224,
         # 加载训练好的 Mamba 主干权重
-        #pretrained_mamba='/home/dc001/.cache/clip/vssm_base_0229_ckpt_epoch_237.pth',
-        pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_ckpt_epoch_222.pth',
-        #pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_PATCHED.pth',
+        pretrained_mamba='/home/dc001/.cache/clip/vssm_base_0229_ckpt_epoch_237.pth',
+        #pretrained_mamba='/home/dc001/.cache/clip/vssm_small_0229_ckpt_epoch_222.pth',
         #pretrained_mamba=None,
-        #pretrained_mamba='/home/dc001/clip3-2/work_dirs/changeclip_sysu/iter_160000.pth',
+        
         patchembed_version="v2",
         ssm_disable_z=True,
         #ssm_disable_z=False,
@@ -94,6 +102,7 @@ model = dict(
         transformer_heads=4,
         transformer_layers=3,
         visual_dim=768,
+        #visual_dim=1024,
         #visual_dim=770,
         dropout=0.1,
         outdim=768,#VIT-L
@@ -107,6 +116,7 @@ model = dict(
         type='FPN',#mmseg\models\necks\fpn.py
         #in_channels=[96,192,384,772],# 每个都 *2，最后一层 +2 再 *2
         #in_channels=[96, 192, 384, 768],# 与 backbone.dims 一致
+        #in_channels=[512, 1024, 2048, 4100],#ResNet
         in_channels=[192, 384, 768, 1540],  # 每个都 *2，最后一层 +2 再 *2
         out_channels=256,
         num_outs=4),
@@ -141,13 +151,7 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole')
 )
-custom_hooks = [
-    dict(
-        type='AlphaRecordHook', 
-        filename='protext_alpha_curve.csv', 
-        record_interval=50  # 每 50 个 step 记录一次
-    )
-]
+
 # AdamW optimizer, no weight decay for position embedding & layer norm
 # in backbone
 optim_wrapper = dict(
@@ -164,9 +168,6 @@ optim_wrapper = dict(
             'relative_position_bias_table': dict(decay_mult=0.),
             'norm': dict(decay_mult=0.),
             # ————2026-3-21——————修改——————见——————ChangeCLIP模型配置（SYSU-CD数据集）
-            # 2026-4-8====修改=========见=======Gemini=============ChangeCLIP 项目介绍与解析=========
-            'protext_alpha_raw': dict(lr_mult=10.0), # 给它 10 倍学习率，让它快速找到最佳融合点
-            # 2026-4-8====修改=========见=======Gemini=============ChangeCLIP 项目介绍与解析=========
             'backbone': dict(lr_mult=0.1),       # 预训练主干降低学习率
             'text_encoder': dict(lr_mult=0.1),   # 预训练文本编码器降低学习率
             'decode_head': dict(lr_mult=10.0),   # 解码头随机初始化，提高学习率加速收敛
@@ -178,67 +179,73 @@ optim_wrapper = dict(
     #修改2026-3-2——————遥感图像变化检测配置解析
     clip_grad=dict(max_norm=1.0, norm_type=2)  # 添加梯度裁剪
 )
+
 param_scheduler = [
     dict(
-        #type='LinearLR', start_factor=1e-3, by_epoch=False, begin=0, end=1500),
-        type='LinearLR', 
-        start_factor=0.1, 
-        by_epoch=False, 
-        begin=0, 
-        #end=1500
-        end=3000#修改2026-3-9——————PyTorch中BN与SyncBN的区别与应用
-        ),#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
+        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=2000),#预热步数为总步数的 5% 左右
         #修改2026-3-2——————遥感图像变化检测配置解析
     dict(
         type='PolyLR',
+        #修改2026-3-2——————遥感图像变化检测配置解析
         #eta_min=0.0,
-        #eta_min=1e-7,#修改2026-3-2——————遥感图像变化检测配置解析
-        eta_min=1e-6,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
+        eta_min=1e-7,
         #power=1.0,
-        power=0.9,#修改2026-3-2——————遥感图像变化检测配置解析
-        #begin=1500,
-        begin=3000,#修改2026-3-9——————PyTorch中BN与SyncBN的区别与应用
-        #end=40000,
-        end=80000,#修改2026-3-9——————PyTorch中BN与SyncBN的区别与应用
+        power=0.9,
+        #修改2026-3-2——————遥感图像变化检测配置解析
+        begin=2000,
+        #begin=6000,
+        #预热步数为总步数的 5% 左右
+        end=20000,
+        #end=120000,
         by_epoch=False,
     )
 ]
 
 train_dataloader = dict(
-    #batch_size=20,
-    batch_size=4 ,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
+    batch_size=20,
+    #batch_size=4,
+    #batch_size=1,
+    #batch_size=8,
+    num_workers=8,
+    #num_workers=4,
     #num_workers=2,
-    num_workers=8,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
     dataset=dict(
         data_root=data_root,
         metainfo=metainfo,
         ann_file='train.txt'))
 val_dataloader = dict(
     batch_size=1,
-    #num_workers=4,
-    num_workers=4,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
+    num_workers=4,
+    #num_workers=2,
     dataset=dict(
         data_root=data_root,
         metainfo=metainfo,
         ann_file='val.txt'))
 test_dataloader = dict(
     batch_size=1,
-    #num_workers=4,
-    num_workers=4,#修改2026-3-5——————PyTorch中BN与SyncBN的区别与应用
+    num_workers=4,
+    #num_workers=2,
     dataset=dict(
         data_root=data_root,
         metainfo=metainfo,
         ann_file='test.txt'))
 
-# training schedule 
-#train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=1000)
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=80000, val_interval=2000)
+# training schedule for 120k
+train_cfg = dict(type='IterBasedTrainLoop', 
+                 max_iters=20000, 
+                 val_interval=500
+                )
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
-    logger=dict(type='LoggerHook', interval=10, log_metric_by_epoch=False),
+    logger=dict(type='LoggerHook', 
+                interval=10, 
+                log_metric_by_epoch=False),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=20000, save_best='mIoU'),
+    checkpoint=dict(type='CheckpointHook', 
+                    by_epoch=False, 
+                    interval=10000, 
+                    save_best='mIoU'),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook'))
+    visualization=dict(type='SegVisualizationHook')) 
