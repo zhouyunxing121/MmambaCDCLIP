@@ -23,36 +23,77 @@ from mmseg.registry import MODELS
 from mmseg.utils import (ConfigType, OptConfigType, OptMultiConfig,
                          OptSampleList, SampleList, add_prefix)
 from .base import BaseSegmentor
-#2026-4-19-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-import random
-from mmcv.transforms import BaseTransform
-from mmseg.registry import TRANSFORMS
 
-@TRANSFORMS.register_module()
-class RandomTimeSwap(BaseTransform):
-    """以 50% 概率随机交换 img 和 img2。"""
-    def __init__(self, prob=0.5):
-        self.prob = prob
-
-    def transform(self, results):
-        if random.random() < self.prob:
-            if 'img' in results and 'img2' in results:
-                results['img'], results['img2'] = results['img2'], results['img']
-            if 'img_path' in results and 'img_path2' in results:
-                results['img_path'], results['img_path2'] = results['img_path2'], results['img_path']
-        return results
-
-
-
-#2026-4-19-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
-
-
+# ====================================================
+# Mamba 依赖导入与层定义 (完全独立，不干扰原结构)
+# ====================================================
 try:
     from mamba_ssm import Mamba
 except ImportError:
     Mamba = None
 #2026-4-18-修改——————见————————Gemini——————ChangeCLIP 项目介绍与解析
+class MambaLayer_1(nn.Module):
+    def __init__(self, dim, d_state=16, d_conv=4, expand=1):
+        super().__init__()
+        self.dim = dim
+        # 为了四向扫描，我们在通道维度上将输入分成4份，交给4个轻量级 Mamba 处理
+        # 这是一种参数效率极高的做法，避免计算量爆炸
+        self.mamba_h_fwd = Mamba(d_model=dim//4, d_state=d_state, d_conv=d_conv, expand=expand)
+        self.mamba_h_bwd = Mamba(d_model=dim//4, d_state=d_state, d_conv=d_conv, expand=expand)
+        self.mamba_v_fwd = Mamba(d_model=dim//4, d_state=d_state, d_conv=d_conv, expand=expand)
+        self.mamba_v_bwd = Mamba(d_model=dim//4, d_state=d_state, d_conv=d_conv, expand=expand)
+        
+        # 将四份特征融合回原维度
+        self.proj = nn.Linear(dim, dim)
 
+    def forward(self, x, H=None, W=None):
+        """
+        为了垂直扫描，我们需要知道图像的高 H 和宽 W
+        x: [B, N, C]  (sequence, where N = H * W)
+        """
+        B, N, C = x.shape
+        
+        # 默认回退：如果没有提供 H, W，假设它是正方形
+        if H is None or W is None:
+            H = W = int(N ** 0.5)
+
+        # 1. 通道分割 (将特征切成 4 份，分别喂给 4 个方向，减小计算量)
+        x_h_fwd, x_h_bwd, x_v_fwd, x_v_bwd = torch.chunk(x, 4, dim=-1)
+
+        # 2. 水平正向 (Horizontal Forward: 左->右)
+        out_h_fwd = self.mamba_h_fwd(x_h_fwd)
+
+        # 3. 水平反向 (Horizontal Backward: 右->左)
+        out_h_bwd = self.mamba_h_bwd(torch.flip(x_h_bwd, dims=[1]))
+        out_h_bwd = torch.flip(out_h_bwd, dims=[1])
+
+        # 4. 垂直正向 (Vertical Forward: 上->下)
+        # 必须先 reshape 回二维，转置，再展平
+        x_v_fwd_2d = x_v_fwd.reshape(B, H, W, -1).transpose(1, 2).reshape(B, N, -1)
+        out_v_fwd_2d = self.mamba_v_fwd(x_v_fwd_2d)
+        # 算完后再转置回来
+        out_v_fwd = out_v_fwd_2d.reshape(B, W, H, -1).transpose(1, 2).reshape(B, N, -1)
+
+        # 5. 垂直反向 (Vertical Backward: 下->上)
+        x_v_bwd_2d = x_v_bwd.reshape(B, H, W, -1).transpose(1, 2).reshape(B, N, -1)
+        x_v_bwd_2d_flip = torch.flip(x_v_bwd_2d, dims=[1])
+        out_v_bwd_2d_flip = self.mamba_v_bwd(x_v_bwd_2d_flip)
+        out_v_bwd_2d = torch.flip(out_v_bwd_2d_flip, dims=[1])
+        out_v_bwd = out_v_bwd_2d.reshape(B, W, H, -1).transpose(1, 2).reshape(B, N, -1)
+
+        # 6. 拼接四向特征并融合
+        out = torch.cat([out_h_fwd, out_h_bwd, out_v_fwd, out_v_bwd], dim=-1)
+        out = self.proj(out)
+
+        # 7. 增强数值稳定
+        out = torch.clamp(out, min=-1e3, max=1e3)  
+        out = torch.nan_to_num(out, nan=0.0, posinf=1e3, neginf=-1e3)  
+        
+        return out
+
+    @property
+    def d_model(self):
+        return self.dim
 class MambaLayer(nn.Module):
     def __init__(self, dim, d_state=16, d_conv=4, expand=1):
         super().__init__()
